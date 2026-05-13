@@ -36,33 +36,89 @@ def main():
       {"role": "user", "content": user_task},
   ]
 
-  response = call_llm(messages)
+  max_steps = 5
 
-  print(f"\n --- AGENT RESPONSE ---")
-  print(response)
+  for step in range(max_steps):
+    print(f"\n --------- STEP {step + 1} -----------")
 
-  parsed = parse_react_response(response)
+    response = call_llm(messages)
 
-  print(f"\n --- PARSED RESPONSE ---")
-  print(parsed)
+    print(f"\n ----- AGENT RESPONSE ------")
+    print(response)
 
-  if parsed["action"] == "bash":
-    command = parsed["command"]
 
-    print(f"\nAgent wants to run command: {command}")
-    approve = input("Allow command? y/n: ")
+    parsed = parse_react_response(response)
 
-    if approve.lower() == "y":
-      result = run_command(command)
+    print(f"\n ----- PARSED RESPONSE -----")
+    print(parsed)
 
-      print(f"\n --- COMMAND RESULT ---")
-      print(result)
+    final = parsed.get("final")
+    action = parsed.get("action")
+    command = parsed.get("command")
+
+    if final and final != "not_done":
+      print(f"\n ---- FINAL ANSWER ----")
+      print(final)
+      break
+
+    if action == "bash":
+      print(f"\nAgent wants to run command: {command}")
+      approve = input("Allow command? y/n: ")
+
+      if approve.lower() == "y":
+        result = run_command(command)
+
+        print(f"\n---- COMMAND RESULT -----")
+        print(result)
+
+        observation = f"""
+Command: {command}
+Return code: {result["return_code"]}
+STDOUT:
+{result["stdout"]}
+
+STDERR:
+{result["stderr"]}
+
+Timed out: {result["timed_out"]}
+"""
+        messages.append({
+          "role": "assistant",
+          "content": response,
+        })
+
+        messages.append({
+          "role": "user",
+          "content": f"OBSERVATION:\n{observation}",
+        })
+
+      else:
+        print("Command denied by user.")
+
+        messages.append({
+          "role": "assistant",
+          "content": response,
+        })
+
+        messages.append({
+          "role": "user",
+          "content": f"OBSERVATION:\nThe command was denied by the user."
+        })
+
+    elif action == "none":
+      print(f"\nNo bash action requested.")
+
+      if final:
+        print(f"\n ---- FINAL ANSWER -----")
+        print(final)
+        break
 
     else:
-      print("Command denied by user.")
-  else:
-    print("No bash action requested.")
+      print(f"\nUnknown action: {action}")
+      break
 
+  else:
+    print(f"\nAgent stopped because max_steps was reached.")
 
 
 if __name__ == "__main__":
