@@ -44,7 +44,7 @@ def run_command(command, timeout=5):
     except FileNotFoundError:
       return {
         "stdout": "",
-        "stderr": f"Command not found.",
+        "stderr": "Command not found.",
         "return_code": None,
         "timed_out": False,
       }
