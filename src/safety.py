@@ -10,6 +10,10 @@ BLOCKED_COMMANDS = {
     "dd",
     "chmod",
     "chown",
+    "curl",
+    "wget",
+    "ssh",
+    "scp",
 }
 
 # Patterns catch dangerous combinations even when the base command is not enough.
@@ -21,6 +25,19 @@ BLOCKED_PATTERNS = {
     "> /dev/sda",
     "/dev/sda",
     "/dev/nvme",
+}
+
+# Block shell operators that could chain commands, redirect output, or run nested commands.
+BLOCKED_OPERATORS = {
+    ";",
+    "&&",
+    "||",
+    "|",
+    ">",
+    ">>",
+    "<",
+    "$(",
+    "`",
 }
 
 
@@ -44,6 +61,14 @@ def is_command_safe(command):
     # Normalize the command to make pattern checks case-insensetive
     command_lower = command.lower().strip()
 
+    # Block operators that contains dangerous shell operators
+    for operator in BLOCKED_OPERATORS:
+      if operator in command_lower:
+        return {
+          "safe": False,
+          "reason": f"Command contains blocked shell operator {operator}"
+        }
+
     # Block commands that contains known dangerous patterns
     for pattern in BLOCKED_PATTERNS:
         if pattern in command_lower:
@@ -51,6 +76,7 @@ def is_command_safe(command):
                 "safe": False,
                 "reason": f"Command contains blocked pattern: {pattern}",
             }
+
 
     # Parse the command safely so we can inspect the base command
     try:
