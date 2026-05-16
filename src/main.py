@@ -1,5 +1,6 @@
 from command_runner import run_command
 from llm_client import call_llm
+from logger import create_log_file, write_log
 from react_parser import parse_react_response
 from safety import is_command_safe
 
@@ -51,6 +52,9 @@ def print_agent_step(step, parsed):
 def main():
     user_task = input("What should the agent do?\n:")
 
+    log_file = create_log_file()
+    write_log(log_file, f"User task:\n{user_task}\n")
+
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_task},
@@ -66,8 +70,26 @@ def main():
             print(response)
 
         parsed = parse_react_response(response)
-
         print_agent_step(step + 1, parsed)
+
+        write_log(
+            log_file,
+            f"""
+          STEP {step + 1}
+
+          Thought:
+          {parsed.get("thought")}
+
+          Action:
+          {parsed.get("action")}
+
+          Command:
+          {parsed.get("command")}
+
+          Final:
+          {parsed.get("final")}
+          """,
+        )
 
         final = parsed.get("final")
         action = parsed.get("action")
@@ -76,12 +98,29 @@ def main():
         if final and final != "not_done":
             print("\n ---- FINAL ANSWER ----")
             print(final)
+
+            write_log(
+                log_file,
+                f"""
+            FINAL ANSWER:
+            {final}
+            """,
+            )
             break
 
         if action == "bash":
             print(f"\nAgent wants to run command: {command}")
 
             safety_result = is_command_safe(command)
+
+            write_log(
+                log_file,
+                f"""
+            Safety check:
+            Safe: {safety_result["safe"]}
+            Reason: {safety_result["reason"]}
+              """,
+            )
 
             if not safety_result["safe"]:
                 print("\n----- COMMAND BLOCKED ----")
@@ -133,6 +172,15 @@ STDERR:
 
 Timed out: {result["timed_out"]}
 """
+
+                write_log(
+                    log_file,
+                    f"""
+                Observation:
+                {observation}
+                """,
+                )
+
                 messages.append(
                     {
                         "role": "assistant",
