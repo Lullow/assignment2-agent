@@ -25,6 +25,8 @@ FINAL:
 If the task is complete, write the final answer.
 If the task is not complete yet, write "not_done".
 
+
+
 Important rules:
 - Do not execute anything yourself.
 - Only suggest one command at a time.
@@ -32,6 +34,9 @@ Important rules:
 - The ACTION field must only contain "bash" or "none".
 - The COMMAND field must contain the actual command, not the ACTION field.
 - Do not write NOT_DONE outside of the FINAL field.
+- If ACTION is "none", FINAL must contain a real final answer and must not be "not_done".
+- If the user asks for something unsafe or destructive, refuse that part in FINAL instead of using "not_done".
+- Use "not_done" only when ACTION is "bash" and you need a command result before answering.
 """
 
 # Set to True when debugging to see the raw LLM responses.
@@ -234,10 +239,42 @@ Timed out: {result["timed_out"]}
         elif action == "none":
             print("\nNo bash action requested.")
 
-            if final:
+            if final and final != "not_done":
                 print("\n ---- FINAL ANSWER -----")
                 print(final)
+
+                write_log(
+                    log_file,
+                    f"""
+                FINAL ANSWER:
+                {final}
+                """,
+                )
                 break
+
+            print("Agent returned ACTION none but FINAL was not_done.")
+            print("Sending correction back to the model.")
+
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": response,
+                }
+            )
+
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "OBSERVATION:\n"
+                        "You returned ACTION none, but FINAL was not_done. "
+                        "If no more command is needed, provide a real final answer. "
+                        "If the requested action is unsafe, refuse it in FINAL."
+                    ),
+                }
+            )
+
+            continue
 
         else:
             print(f"\nUnknown action: {action}")
