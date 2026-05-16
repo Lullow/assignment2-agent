@@ -26,7 +26,26 @@ Important rules:
 - Do not execute anything yourself.
 - Only suggest one command at a time.
 - Do not use destructive commands.
+- The ACTION field must only contain "bash" or "none".
+- The COMMAND field must contain the actual command, not the ACTION field.
+- Do not write NOT_DONE outside of the FINAL field.
 """
+
+DEBUG = False
+
+
+# Helper function: step = what step agent is on / parsed = dictionary from the parser
+def print_agent_step(step, parsed):
+    print(f"\n--------- STEP {step} ---------")
+
+    print("\nThought:")
+    print(parsed.get("thought"))
+
+    print("\nAction:")
+    print(parsed.get("action"))
+
+    print("\nCommand:")
+    print(parsed.get("command"))
 
 
 def main():
@@ -40,17 +59,15 @@ def main():
     max_steps = 5
 
     for step in range(max_steps):
-        print(f"\n --------- STEP {step + 1} -----------")
-
         response = call_llm(messages)
 
-        print("\n ----- AGENT RESPONSE ------")
-        print(response)
+        if DEBUG:
+            print("\n ----- AGENT RESPONSE ------")
+            print(response)
 
         parsed = parse_react_response(response)
 
-        print("\n ----- PARSED RESPONSE -----")
-        print(parsed)
+        print_agent_step(step + 1, parsed)
 
         final = parsed.get("final")
         action = parsed.get("action")
@@ -91,13 +108,23 @@ def main():
             if approve.lower() == "y":
                 result = run_command(command)
 
-                print("\n---- COMMAND RESULT -----")
-                print(result)
+                print("\nObservation:")
+
+                if result["stdout"]:
+                    print(result["stdout"])
+
+                if result["stderr"]:
+                    print("\nErrors:")
+                    print(result["stderr"])
+
+                print(f"\nReturn code: {result['return_code']}")
+                print(f"Timed out: {result['timed_out']}")
 
                 observation = f"""
 Command: {command}
-Working directory: project root 
+Working directory: project root
 Return code: {result["return_code"]}
+
 STDOUT:
 {result["stdout"]}
 
