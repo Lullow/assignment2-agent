@@ -1,5 +1,8 @@
 import subprocess
 import shlex
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 def run_command(command, timeout=5):
     """
@@ -24,6 +27,7 @@ def run_command(command, timeout=5):
         capture_output=True,
         text=True,
         timeout=timeout,
+        cwd=PROJECT_ROOT
       )
 
       return {

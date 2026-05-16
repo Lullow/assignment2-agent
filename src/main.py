@@ -96,6 +96,7 @@ def main():
 
                 observation = f"""
 Command: {command}
+Working directory: project root 
 Return code: {result["return_code"]}
 STDOUT:
 {result["stdout"]}
