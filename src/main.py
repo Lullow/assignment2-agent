@@ -4,6 +4,8 @@ from logger import create_log_file, write_log
 from react_parser import parse_react_response
 from safety import is_command_safe
 
+# Defines the ReAct format that the model must follow.
+# The parser depends on these exact section names.
 SYSTEM_PROMPT = """
 You are a simple ReAct-style coding agent.
 
@@ -32,10 +34,11 @@ Important rules:
 - Do not write NOT_DONE outside of the FINAL field.
 """
 
+# Set to True when debugging to see the raw LLM responses.
 DEBUG = False
 
 
-# Helper function: step = what step agent is on / parsed = dictionary from the parser
+# Prints one parsed ReAct step in readable format for the terminal.
 def print_agent_step(step, parsed):
     print(f"\n--------- STEP {step} ---------")
 
@@ -52,23 +55,28 @@ def print_agent_step(step, parsed):
 def main():
     user_task = input("What should the agent do?\n:")
 
+    # Create a seperate log file for this agent run.
     log_file = create_log_file()
     write_log(log_file, f"User task:\n{user_task}\n")
 
+    # The messages list acts as the agents short-term memory during this run.
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_task},
     ]
 
+    # Limit the numer of ReAct steps to avoid to many loops and unnecessary API usage.
     max_steps = 5
 
     for step in range(max_steps):
+        # Ask the model what the next ReAct step should be.
         response = call_llm(messages)
 
         if DEBUG:
             print("\n ----- AGENT RESPONSE ------")
             print(response)
 
+        # Convert the models text response into structured fields.
         parsed = parse_react_response(response)
         print_agent_step(step + 1, parsed)
 
@@ -95,6 +103,7 @@ def main():
         action = parsed.get("action")
         command = parsed.get("command")
 
+        # if FINAL contains a real answer, the agent is done.
         if final and final != "not_done":
             print("\n ---- FINAL ANSWER ----")
             print(final)
@@ -108,9 +117,11 @@ def main():
             )
             break
 
+        # Only bash actions are allowed to request command excecution.
         if action == "bash":
             print(f"\nAgent wants to run command: {command}")
 
+            # Check command safety before asking the user for approval.
             safety_result = is_command_safe(command)
 
             write_log(
@@ -126,6 +137,7 @@ def main():
                 print("\n----- COMMAND BLOCKED ----")
                 print(safety_result["reason"])
 
+                # Stores the assistants response so the model can see what it prevciously suggested
                 messages.append(
                     {
                         "role": "assistant",
@@ -133,6 +145,7 @@ def main():
                     }
                 )
 
+                # Send the blocked-command result back as a observation so the agent can recover.
                 messages.append(
                     {
                         "role": "user",
@@ -142,9 +155,11 @@ def main():
 
                 continue
 
+            # Human approval is required even after the automatic safety check passes.
             approve = input("Allow command? y/n: ")
 
             if approve.lower() == "y":
+                # Execute the approved command and capture stdout, sterr and return code.
                 result = run_command(command)
 
                 print("\nObservation:")
@@ -159,6 +174,7 @@ def main():
                 print(f"\nReturn code: {result['return_code']}")
                 print(f"Timed out: {result['timed_out']}")
 
+                # Format the command result as a observation for the next LLM step.
                 observation = f"""
 Command: {command}
 Working directory: project root
@@ -181,6 +197,7 @@ Timed out: {result["timed_out"]}
                 """,
                 )
 
+                # Store the assistants action before adding the command observation
                 messages.append(
                     {
                         "role": "assistant",
@@ -188,6 +205,7 @@ Timed out: {result["timed_out"]}
                     }
                 )
 
+                # Send the command output back to the model as an observation
                 messages.append(
                     {
                         "role": "user",
@@ -195,6 +213,7 @@ Timed out: {result["timed_out"]}
                     }
                 )
 
+            # Tell the model that the command was denied by the user.
             else:
                 print("Command denied by user.")
 

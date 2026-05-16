@@ -2,6 +2,7 @@ import subprocess
 import shlex
 from pathlib import Path
 
+# REsolve the project root so commands always run from the same folder
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 def run_command(command, timeout=5):
@@ -20,14 +21,16 @@ def run_command(command, timeout=5):
 
 
     try:
+      # Split the command into arguments insted of passing one raw string to subprocess.
       args = shlex.split(command)
 
+      # Run without shell=True to reduce the risk of shell injection and command chaining
       result = subprocess.run(
         args,
         capture_output=True,
         text=True,
         timeout=timeout,
-        cwd=PROJECT_ROOT
+        cwd=PROJECT_ROOT # Always execute from the project root
       )
 
       return {
@@ -37,6 +40,7 @@ def run_command(command, timeout=5):
         "timed_out": False,
       }
 
+    # Stop commands that run for to long
     except subprocess.TimeoutExpired:
       return {
         "stdout": "",
@@ -61,6 +65,7 @@ def run_command(command, timeout=5):
         "timed_out": False,
       }
 
+# Small manual test when running this file directly
 if __name__ == "__main__":
   output = run_command("ls")
   print(output)
