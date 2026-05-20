@@ -26,7 +26,6 @@ If the task is complete, write the final answer.
 If the task is not complete yet, write "not_done".
 
 
-
 Important rules:
 - Do not execute anything yourself.
 - Only suggest one command at a time.
@@ -43,8 +42,14 @@ Important rules:
 DEBUG = False
 
 
-# Prints one parsed ReAct step in readable format for the terminal.
 def print_agent_step(step, parsed):
+    """
+    Print one parsed ReAct step in a readable format.
+
+    This makes it easier to follow what the agent is thinking,
+    which action it chose, and which command it wants to run.
+    """
+
     print(f"\n--------- STEP {step} ---------")
 
     print("\nThought:")
@@ -57,14 +62,20 @@ def print_agent_step(step, parsed):
     print(parsed.get("command"))
 
 
-def main():
-    user_task = input("What should the agent do?\n:")
+def run_agent_task(user_task):
+    """
+    Run one full agent task.
 
-    # Create a seperate log file for this agent run.
+    The agent repeatedly asks the model for a ReAct step, optionally executes
+    a safe approved command, sends the result back as an observation, and
+    continues until it reaches a final answer or max_steps.
+    """
+
+    # Create a log file for this run so the agent's behavior can be inspected later.
     log_file = create_log_file()
     write_log(log_file, f"User task:\n{user_task}\n")
 
-    # The messages list acts as the agents short-term memory during this run.
+    # Start the conversation with the system rules and the user's task.
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_task},
@@ -77,14 +88,17 @@ def main():
         # Ask the model what the next ReAct step should be.
         response = call_llm(messages)
 
+        # Optionally print the raw response before parsing.
         if DEBUG:
             print("\n ----- AGENT RESPONSE ------")
             print(response)
 
-        # Convert the models text response into structured fields.
+        # Convert the models text response into structured fields:
+        # thought, action, command, and final.
         parsed = parse_react_response(response)
         print_agent_step(step + 1, parsed)
 
+        # Save this step to the log file.
         write_log(
             log_file,
             f"""
@@ -150,7 +164,8 @@ def main():
                     }
                 )
 
-                # Send the blocked-command result back as a observation so the agent can recover.
+                # Send the blocked-command result back as a observation.
+                # This allows the agent to recover instead of crashing or repeating blindly.
                 messages.append(
                     {
                         "role": "user",
@@ -202,7 +217,7 @@ Timed out: {result["timed_out"]}
                 """,
                 )
 
-                # Store the assistants action before adding the command observation
+                # Store the assistants action before adding the command observation.
                 messages.append(
                     {
                         "role": "assistant",
@@ -210,7 +225,8 @@ Timed out: {result["timed_out"]}
                     }
                 )
 
-                # Send the command output back to the model as an observation
+                # Send the command output back to the model as an observation.
+                # This is what gives the agent memory of what happened after the tool ran.
                 messages.append(
                     {
                         "role": "user",
@@ -218,10 +234,10 @@ Timed out: {result["timed_out"]}
                     }
                 )
 
-            # Tell the model that the command was denied by the user.
+
             else:
                 print("Command denied by user.")
-
+                # Store the assistant's proposed command.
                 messages.append(
                     {
                         "role": "assistant",
@@ -229,6 +245,7 @@ Timed out: {result["timed_out"]}
                     }
                 )
 
+                # Tell the model that the command was denied by the user.
                 messages.append(
                     {
                         "role": "user",
@@ -255,6 +272,7 @@ Timed out: {result["timed_out"]}
             print("Agent returned ACTION none but FINAL was not_done.")
             print("Sending correction back to the model.")
 
+            # Store the invalid assistant response.
             messages.append(
                 {
                     "role": "assistant",
@@ -262,6 +280,7 @@ Timed out: {result["timed_out"]}
                 }
             )
 
+            # Give the model corrective feedback so it can produce a valid final answer.
             messages.append(
                 {
                     "role": "user",
@@ -277,12 +296,40 @@ Timed out: {result["timed_out"]}
             continue
 
         else:
+            # Stop if the model returned an action that the agent does not support.
             print(f"\nUnknown action: {action}")
             break
 
     else:
+        # This runs only if the loop finishes without hitting break.
         print("\nAgent stopped because max_steps was reached.")
 
 
+def main():
+    """
+    Start the terminal interface for the ReAct coding agent.
+    """
+
+    print("ReAct Coding Agent")
+    print("Type 'quit', 'exit', or 'q' to stop.\n")
+
+    while True:
+        # Ask the user for a new task.
+        user_task = input("What should the agent do?\n:")
+
+        # Allow the user to exit the program cleanly.
+        if user_task.lower().strip() in ["quit", "exit", "q"]:
+            print("Goodbye!")
+            break
+
+        # Do not run the agent if the user entered an empty task.
+        if not user_task.strip():
+            print("Please enter a task.")
+            continue
+
+        # Run the agent on the user's task.
+        run_agent_task(user_task)
+
 if __name__ == "__main__":
+    # Only start the program when this file is run directly.
     main()
