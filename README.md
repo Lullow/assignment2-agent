@@ -96,10 +96,24 @@ pip install -r requirements.txt
 
 Create a `.env` file in the project root:
 
+```bash
+cp .env.example .env
+```
+
+For OpenRouter, use:
+
+```env
+OPENAI_API_KEY=your_openrouter_api_key_here
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+LLM_MODEL=openai/gpt-4o-mini
+```
+
+For LM Studio, use:
+
 ```env
 OPENAI_BASE_URL=http://localhost:1234/v1
 OPENAI_API_KEY=lm-studio
-LLM_MODEL=qwen2.5-14b-instruct
+LLM_MODEL=qwen3-32b
 ```
 
 The project uses an OpenAI-compatible client, so it can work with providers such as LM Studio, OpenRouter, local OpenAI-compatible servers, or similar setups.
